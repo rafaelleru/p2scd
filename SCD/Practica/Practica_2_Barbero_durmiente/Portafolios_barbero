@@ -1,0 +1,156 @@
+PORTAFOLIOS EXPLICATIVO DEL PROGRAMA DEL BARBERO (DEL MONITOR)
+
+añadimos a la clase Barbería la clase AbstractMonitor para poder trabajar con los susodichos monitores en java.
+
+A continuación denotamos 3 variables de tipo Condition intuitivas para poder ir realizando lo que el ejercicio nos pide.
+Ahora nos ponemos manos a la obra y empezamos a rellenar las 3 funciones que realizará cada hebra.
+
+La función cortarPelo es una función llamada por la hebra de los clientes encargada de, intuitivamente, cortar el pelo
+al cliente que llama a dicha función, si dicha opción está disponible en el tiempo. Primeramente preguntamos que si
+inicialmente hay un cliente en la silla pelándose o que simplemente hay alguien en la cola de clientes para poder ser pelados
+dicho Condition espera_cliente ha de ser pausado con await con su respectivo cout para que al compilar el programa, podamos ver
+si verdaderamente funciona bien el programa. Seguidamente preguntamos si nuestro barbero en cuestión, su cola de procesos bloqueados
+posee o no elementos en la cola y que, en caso negativo en que esté la cola de procesos vacía (nuestro querido barbero está durmiendo)
+lo que hacemos es simplemente pues despertar al barbero, tal y como indica el guión del ejercicio. Y para finalizar hacemos una compro_
+bación de que la cola de procesos bloqueados de la lista de clientes esté vacía y, en caso afirmativo, bloqueamos nuestra silla de
+pelar del barbero, para que únicamente pueda estar pelándose un solo cliente en tiempo real. 
+
+Decir que en cada una de estas funciones a seguir por las hebras con herencia de monitores, conllevan dentro de ellos en el principio y en el final de cada uno, un enter() y un leave para indicar que el monitor puede comunicarse con el exterior en ese pedazo de código, reali_
+zando a su vez un cerrojo para poder realizar la exclusión mútua y no solapar iteraciones unas con otras (aparte que sin los enter() y
+leave() el propio monitor no funcionaría).
+
+Tanto la función siguienteCliente como la función finCliente son llamadas por la hebra del barbero, donde la función siguienteCliente 
+comienza preguntando si la cola de procesos bloqueados de la silla está vacía y, en caso afirmativo comprobamos que la cola de procesos
+bloqueados de los clientes también lo está, de ser así, ponemos a nuestro barbero a dormir, puesto que no tiene nada qué hacer, en caso 
+contrario nuestro barbero sería el que despertaría a nuestro cliente, que está esperando para ser pelado. Y la función finCliente únicamente
+realiza la acción de comprobar que si la cola de procesos bloqueados de la silla de pelar simplemente contiene procesos, los desbloquea 
+para así indicar que el barbero ya "ha pelado" a su cliente y que puede proceder a irse y dejar el asiento a un futuro cliente.
+
+El resto de código para inicializar las hebras y el main vienen explicado mediante comentarios cortos dentro del propio programa barbero.java
+
+Álvaro Fernández Palma
+
+
+import monitor.* ;
+import java.util.Random;
+
+class Barberia extends AbstractMonitor {
+	Condition espera_silla=makeCondition();
+	Condition espera_cliente=makeCondition();
+	Condition espera_barbero=makeCondition();
+
+	public void cortarPelo(int numC){
+	enter();
+	if (!espera_silla.isEmpty() || !espera_cliente.isEmpty()){
+	   espera_cliente.await();
+           System.out.println("El cliente espera su turno -->"+numC);
+        }
+        if(!espera_barbero.isEmpty()){
+           System.out.println("El cliente despierta al barbero-->"+numC);
+           espera_barbero.signal();
+        }
+        System.out.println("El cliente se va a pelar-->"+numC);
+    	if(espera_cliente.isEmpty())
+	   espera_silla.await();
+        System.out.println("El cliente se despide del barbero -->"+numC);
+	leave();
+	}
+
+	public void siguienteCliente(){
+	enter();
+	if(espera_silla.isEmpty()){
+		if(espera_cliente.isEmpty()){
+                   System.out.println("El barbero se duerme en la silla");
+		   espera_barbero.await();
+                }
+		else {
+                   System.out.println("El barbero llama al cliente");
+		   espera_cliente.signal();
+                }
+	}
+	leave();
+	}
+
+	public void finCliente(){
+        enter();
+        if(!espera_silla.isEmpty()){
+           System.out.println("El barbero ha terminado de pelar al cliente");
+	   espera_silla.signal();
+        }
+        leave();
+	}
+}	
+
+class Cliente implements Runnable{
+    public Thread thr;
+    private Barberia barberia;
+    int numC;
+    aux aux;
+
+    public Cliente(Barberia barberia, int numC){//constructor
+        this.barberia = barberia;
+        this.numC = numC;
+        this.thr = new Thread(this, "Cliente " + numC);
+    }
+
+    public void run(){
+        while(true){
+            barberia.cortarPelo(numC);//cortandose el pelo
+        }
+    }
+}
+
+class Barbero implements Runnable{
+    public Thread thr;
+    private Barberia barberia;
+    aux aux;
+
+    public Barbero(Barberia barberia){
+        this.barberia = barberia;
+        this.thr = new Thread(this, "Barbero");
+    }
+
+    public void run(){
+        while(true){
+            barberia.siguienteCliente();//llama a siguiente cliente
+            barberia.finCliente();//termina de pelarlo
+            aux.dormir_max(1000);
+        }
+    }
+}
+
+class aux{
+  static Random genAlea = new Random() ;
+  static void dormir_max( int milisecsMax )
+  { try
+    { Thread.sleep( genAlea.nextInt( milisecsMax ) ) ;
+    } 
+    catch( InterruptedException e )
+    { System.err.println("sleep interumpido en 'aux.dormir_max()'");
+    }
+  }
+}
+
+
+class barb{
+    public static void main( String[] args ){
+      
+
+       
+        Cliente[] clientes = new Cliente[3] ;
+        Barberia barberia = new Barberia();
+        // crear hebra barbero
+        Barbero barbero = new Barbero(barberia);
+
+        // crear hebras clientes
+        System.out.println("Tamaño vector -->"+clientes.length);
+        for(int i = 0; i < clientes.length; i++)
+	    clientes[i] = new Cliente(barberia, i) ;
+
+        // poner en marcha las hebras
+        barbero.thr.start();
+        for(int i = 0; i < clientes.length; i++)
+            clientes[i].thr.start();
+    }
+}
+

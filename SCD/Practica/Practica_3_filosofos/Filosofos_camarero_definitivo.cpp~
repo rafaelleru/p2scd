@@ -1,0 +1,144 @@
+#include "mpi.h"
+#include <stdlib.h>
+#include <iostream>
+#include <time.h>
+
+#define Camarero 10 //Camarero definido en el proceso 10
+
+using namespace std;
+
+void Filosofo(int id, int nprocesos){
+   int izq=(id+1)%nprocesos;
+   int der=(id-1+nprocesos)%nprocesos;
+   int sentarse;
+   int levantarse;
+
+   while(1){
+
+	//Primero siempre está pensando
+
+	cout << "Filósofo "<<id<<" está P E N S A N D O"<<endl<<flush;
+        sleep((rand()%3)+1 );		
+
+	//Luego pregunta al camarero si se puede sentar
+
+	cout << "Filósofo "<<id<<" pregunta al camarero si puede sentarse";
+ 	MPI_Ssend(&sentarse,1, MPI_INT,10, 2, MPI_COMM_WORLD); 
+	
+	//Una vez se ha podido sentar, solicita su tenedor izquierdo
+
+ 	cout<<"Filósofo "<<id<< " solicita tenedor izqquierdo "<<izq <<endl<<flush;
+ 	MPI_Ssend(&izq,1, MPI_INT,izq,0,MPI_COMM_WORLD);
+ 	cout << "Filósofo " << id << " coge el tenedor izquierdo " << izq << endl << flush;
+      
+	//y ahora pues el drecho
+      
+	cout<<"Filosofo "<<id<< " solicita tenedor derecho "<<der <<endl<<flush;
+ 	MPI_Ssend(&der,1, MPI_INT, der, 0, MPI_COMM_WORLD); 
+ 	cout<<"Filosofo "<<id<< " coge tenedor derecho "<<der <<endl<<flush;
+	
+	//Ahora se pone a comer	
+	
+ 	cout<<"Filosofo "<<id<< " está C O M I E N D O"<<endl<<flush;
+ 	sleep((rand() % 3)+1);
+      
+	//Devuelve el tenedor izquierdo
+      
+	cout<<"Filosofo "<<id<< " suelta tenedor izquierdo "<<izq <<endl<<flush;
+ 	MPI_Ssend(&izq,1, MPI_INT,izq, 1, MPI_COMM_WORLD);
+      
+	//Y ahora devuelve el derecho
+
+ 	MPI_Ssend(&der,1, MPI_INT, der, 1, MPI_COMM_WORLD); 
+ 	cout <<"Filosofo "<<id<<" suelta tenedor derecho "<<der<<endl<<flush;
+
+	//Y, para terminar, se levanta de la mesa y se va.
+
+ 	cout <<"Filosofo "<<id<<" decide levantarse de la mesa";
+ 	MPI_Ssend(&levantarse,1, MPI_INT, 10, 3, MPI_COMM_WORLD); //envía un mensaje ÚNICAMENTE al proceso 10, es decir, al CAMARERO con
+	}                                                         // etiqueta 6
+}
+
+
+
+void Tenedor (int id, int nprocesos){
+   int buf; MPI_Status status; int Filo;
+
+   while(1){
+ 	// Espera un peticion desde cualquier ﬁlosofo vecino ...
+
+ 	MPI_Probe(MPI_ANY_SOURCE,MPI_ANY_TAG, MPI_COMM_WORLD,&status); 
+
+ 	// Recibe la peticion del ﬁlosofo ...
+
+ 	MPI_Recv(&buf,1,MPI_INT,MPI_ANY_SOURCE,0,MPI_COMM_WORLD,&status);
+ 	cout<<"Proceso tenedor --> ("<<id<<") recibe peticion del filosofo --> "<<status.MPI_SOURCE <<endl<<flush;
+
+ 	// Espera a que el ﬁlosofo suelte el tenedor...
+
+ 	MPI_Recv(&buf,1,MPI_INT,MPI_ANY_SOURCE,1,MPI_COMM_WORLD,&status);
+        cout<<"Proceso tenedor --> ("<<id<<") recibe la liberacion  del filosofo --> ("<<status.MPI_SOURCE<<")" << endl<<flush;
+   }
+
+}
+
+void Camarero(int id, int nprocesos){
+	int permiso,size; 
+	MPI_Status status; 
+	int Filo,flag;
+	int num_silla=1;
+
+	while(true){
+		//Espera una peticion de sentarse a cualquier filosofo..
+		if((num_silla<=4)){
+			MPI_Probe(MPI_ANY_SOURCE,2, MPI_COMM_WORLD,&status);
+			cout << "El camarero ve si la mesa está vacía, sillas ocupadas = "<< num_silla-1 <<", tope = 4" << endl << flush;
+          		MPI_Recv(&permiso,1,MPI_INT,MPI_ANY_SOURCE,2,MPI_COMM_WORLD,&status); //filósofo que envió el mensaje de permiso
+          		cout << "El camarero deja sentarse al filósofo" << status.MPI_SOURCE <<endl<<flush;
+          		num_silla++;
+          		MPI_Iprobe(MPI_ANY_SOURCE,3,MPI_COMM_WORLD,&flag,&status);
+			
+          		if(flag>1){
+             			MPI_Recv(&permiso,1,MPI_INT,MPI_ANY_SOURCE,3,MPI_COMM_WORLD,&status);
+             			cout << "El camarero ayuda a levantarse de la mesa al filósofo "<< status.MPI_SOURCE <<endl<<flush;
+             			num_silla--;
+          		}
+       		}  
+       		else {
+          		cout << "La mesa está al completo, vuelva más tarde.";
+          		MPI_Probe(MPI_ANY_SOURCE,3, MPI_COMM_WORLD,&status);
+			
+          		MPI_Recv(&permiso,1,MPI_INT,MPI_ANY_SOURCE,3,MPI_COMM_WORLD,&status);
+          		cout << "El camarero ayuda a levantarse de la mesa al filósofo "<< status.MPI_SOURCE <<endl<<flush;
+          		num_silla--;
+      		}
+   	}
+}
+
+int main(int argc,char** argv ){
+	int rank,size;
+   
+	MPI_Init( &argc, &argv );                    //Inicializo MPI
+	MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+	MPI_Comm_size( MPI_COMM_WORLD, &size );
+
+	srand(time(0)); //Inicializo la semilla aleatoria.
+
+   	if( size!=11){ 
+     		cout<<"El numero de procesos debe ser 10"<<endl<<flush;
+      		MPI_Finalize( ); 
+   		return 0;
+  	}
+
+   	if (((rank<10) && (rank%2) == 0)) 
+		Filosofo(rank,size-1); // Los procesos pares son Filosofos
+   	else if(((rank<10) && (rank%2) != 0))
+		Tenedor(rank,size-1); // Los procesos impares son Tenedores
+   	else { 
+      		Camarero(rank,size); // El proceso 10 para uso exclusivo del camarero
+   }
+
+   MPI_Finalize();
+   return 0;
+}
+

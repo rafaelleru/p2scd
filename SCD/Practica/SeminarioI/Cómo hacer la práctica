@@ -1,0 +1,7 @@
+Para compilar ejemplohebras1.cpp poner:
+
+g++ ejemplohebras1.cpp -lpthread
+
+y para guardar la salida en un editor de textos:
+
+./a.out > salida

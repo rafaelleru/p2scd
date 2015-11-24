@@ -1,0 +1,186 @@
+import monitor.* ;
+import java.util.Random;
+import <time.h>     //incluye "time(....)"
+
+
+//Para la resolución de éste ejercicio, la primera parte, nos piden que, cuando el fumador haya podido fumar ya 3 veces, la próxima
+//vez que fume, éste decidirá no fumar pero igualmente retirará el item de la mesa y también desbloquea al estanquero para que siga
+//creando nuevos items, reiniciando así el contador de fumador que recoge el item pero no fuma. Una solución, al menos la que he
+//pensado yo es crear 3 variables enteras contadoras globales con nombres intuitivos para cada tipo de ingrediente y, en el protocolo
+//de obtenerIngrediente en cada condicional añadimos el condicional de que el fumador fumará si dicho contador es menor que 4 y, en caso
+//contrario mostramos nuestro mensaje por pantalla, ponemos a nuestro fumador a fumar y aumentamos dicha variable contadora.
+
+//Para la segunda parte del ejercicio denotamos una variable global auxiliar la cual recuerde el último item creado por el estanquero 
+//en la función ponerIngrediente y seva comparando siempre con el nuevo item que crea. Si dichos items son iguales (son el mismo número)
+//entonces se muestra dicho mensaje por pantalla.
+
+int fumador1=0;
+int fumador2=0;
+int fumador3=0;
+
+int IngredienteRepetido=89;   //Da igual el número, siempre y cuando no lo iniciemos a 0, 1 ó 2.
+
+void fumar()				 //función que simula la acción de fumar
+{					 //como un retardo aletaorio de la hebra
+	usleep( 100 + (rand() % 1900) ); //retraso aleatorio entre 0'1 y 2 segundos
+}
+
+class Estanquero extends AbstractMonitor {
+   private int ingrediente=-1; //Inicialmente mesa vacia
+   private Condition obtener_tabaco=makeCondition();
+   private Condition obtener_cerillas=makeCondition();
+   private Condition obtener_papel=makeCondition();
+   private Condition espera_estanquero= makeCondition();  
+
+   public void obtenerIngrediente(int Ingrediente){
+      enter();
+      if(this.ingrediente!=Ingrediente){
+        if(Ingrediente==0){
+            System.out.println("El fumador 1 espera tabaco");
+            obtener_tabaco.await();
+         }
+         else if(Ingrediente==1){
+            System.out.println("El fumador 2 espera cerillas");
+            obtener_cerillas.await();
+         }
+         else{
+             System.out.println("El fumador 3 espera papel");
+             obtener_papel.await();
+         }
+      }    
+      if(this.ingrediente==Ingrediente){
+        if(Ingrediente==0){
+            if(fumador1<4){
+		System.out.println("El fumador 1 recoge tabaco y comienza a fumar");
+		fumar();
+		fumador1++;
+	    }
+	    else {
+		System.out.println("El fumador 1 ha fumado suficiente por ahora, pero igualmente retira el tabaco");
+		fumador1=0;
+	    }
+         }
+         else if(Ingrediente==1){
+            if(fumador2<4){
+		System.out.println("El fumador 2 recoge cerillas y comienza a fumar");
+		fumar();
+		fumador2++;
+	    }
+	    else {
+		System.out.println("El fumador 2 ha fumado suficiente por ahora, pero igualmente retira las cerillas");
+		fumador2=0;
+	    }
+         }
+         else{
+             if(fumador3<4){
+		System.out.println("El fumador 3 recoge papel y comienza a fumar");
+                fumar();
+	        fumador3++;
+	     }
+	     else {
+		System.out.println("El fumador 3 ha fumado suficiente por ahora, pero igualmente retira las cerillas");
+		fumador3=0;
+         }
+      }    
+
+      ingrediente=-1;
+      espera_estanquero.signal();
+      leave();  
+   }
+
+   public void ponerIngrediente(int ingrediente){ 
+       enter();
+       IngredienteRepetido=this.ingrediente //hacemos la asignación ANTES de asignar el nuevo valor a nuestra variable del monitor.
+       this.ingrediente=ingrediente;
+       if(this.ingrediente==IngredienteRepetido) System.out.println("Estanquero ha puesto dos veces seguidas el mismo ingrediente");
+       if(this.ingrediente==0) obtener_tabaco.signal();
+       if(this.ingrediente==1) obtener_cerillas.signal();
+       if(this.ingrediente==2) obtener_papel.signal();
+       leave();
+   }
+   /*
+   private Condition obtener_tabaco=makeCondition();
+   private Condition obtener_cerillas=makeCondition();
+   private Condition obtener_papel=makeCondition();
+   */
+   public void esperarRecogidaIngrediente(){
+       enter();
+
+       if (ingrediente!=-1) espera_estanquero.await();
+       System.out.println("El estanquero encuentra mesa vacia ....");
+       leave();
+   }
+
+}
+
+class Fumadores implements Runnable {
+   int mi_Ingrediente;
+   public Thread thr;
+   Estanco estanco;
+
+   public Fumadores( int p_miIngrediente, String nombre, Estanco estanco){
+      this.mi_Ingrediente=p_miIngrediente;
+      thr = new Thread(this,nombre);
+      this.estanco=estanco;
+   }
+
+   public void run(){
+      while(true){
+         estanco.obtenerIngrediente( mi_Ingrediente );
+      }
+   }
+}
+
+class Estanquero implements Runnable {
+   public Thread thr;
+   aux aux;
+   Estanco estanco;
+
+   public Estanquero(Estanco estanco){
+      thr = new Thread(this,"Estanco pepito");
+      this.estanco=estanco;
+   }
+   public void run() {
+      int ingrediente;
+      while(true){
+         ingrediente = (int) (Math.random () * 3.0);
+         System.out.println("Numero generado --> " + ingrediente);
+         estanco.ponerIngrediente(ingrediente);
+         aux.dormir_max(9999);
+         estanco.esperarRecogidaIngrediente();
+      }
+   }
+}
+
+class aux{
+  static Random genAlea = new Random() ;
+  static void dormir_max( int milisecsMax )
+  { try
+    { Thread.sleep( genAlea.nextInt( milisecsMax ) ) ;
+    } 
+    catch( InterruptedException e )
+    { System.err.println("sleep interumpido en 'aux.dormir_max()'");
+    }
+  }
+}
+
+class EjemploFumadores { 
+   public static void main( String[] args ) throws InterruptedException { 
+      Fumadores[] fumadores=new Fumadores[3];
+      Estanco estanco = new Estanco();
+      Estanquero estanquero= new Estanquero(estanco);
+      
+
+      estanquero.thr.start();
+      for(int i=0; i<3; i++){
+         fumadores[i]=new Fumadores(i,"Fumador"+1,estanco);
+         fumadores[i].thr.start();
+      }
+
+      estanquero.thr.join();
+
+      for(int i=0; i<3; i++){
+         fumadores[i].thr.join();
+      }
+   }
+}

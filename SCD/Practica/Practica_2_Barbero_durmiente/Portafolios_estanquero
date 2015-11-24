@@ -1,0 +1,162 @@
+PORTAFOLIOS EXPLICATIVO DEL PROGRAMA DEL ESTANQUERO (DEL MONITOR)
+
+Añado a la clase Estanquero la herencia de la clase AbstractMonitor con 5 variables de instancia privadas, la primera un entero
+para indicar qué tipo de los 3 ingredientes poseo y señalar que cuando obtengo el valor -1 quiere decir que la mesa del estanquero
+está vacía. El resto de variables son de tipo Condition con nombres intuitivos para ayudar a resolver lo más intuitivamente el problema.
+
+La función ObtenerIngrediente necesita un parámetro, dicho parámetro indicará el tipo de ingrediente que se va a obtener, 0 para el
+tabaco, 1 para las cerillas y 2 para el papel. Si el objeto que tiene de partida el estanquero es distinto que el que se llama por la
+función únicamente se indica el tipo de objeto que espera cada uno de los fumadores para poder fumar, es decir, se hace un wait a cada uno
+de ellos cuando lo que se busca es un objeto distinto al que necesitan y, si por el contrario el objeto por el que se llama a la función coincide con el de partida, dicho fumador es desbloqueado para su posterior acción de fumar. Y una vez que se ha determinado la acción con el ingrediente introducido por el estanquero, se coloca de nuevo el ingrediente a -1 para indicar que tenemos nuestra mesa vacía, ya que se ha recogido el ingrediente aporta por el estanquero.
+
+La función AportarIngrediente es efectuada por el estanquero el cual se le pasa como parámetro un ingrediente, dicho ingrediente se guarda
+en la variable ingrediente de nuestro monitor y, dependiendo del valor del ingrediente, desbloqueamos a uno de los 3 tipos de fumadores que
+tenemos con un signal a cada uno (solamente podemos desbloquear un fumador a la vez, dado que solo generamos un item).
+
+Por último la función esperarRecogidaIngrediente lo único que hace es que si el ingrediente de nuestro monitor es distinto de -1 quiere decir
+que actualmente tenemos un objeto en nuestra mesa, así que le decimos a nuestro estanquero que se bloquee y espere a que dicho item sea
+recogido por algún fumador, en caso contrario simplemente sacamos por pantalla un mensaje diciendo que nuestra mesa está vacía.
+
+En las anteriores funciones siempre colocamos al principio y al final de cada una de ellas un enter() y un leave() para poder entrar al monitor y que éste se pueda comunicar con el exterior.
+
+Para la implementación de las hebras en Java incluyo directamente todo el código del programa (incluído del monitor) para terminar
+el portafolios:
+
+import monitor.* ;
+import java.util.Random;
+
+class Estanquero extends AbstractMonitor {
+   private int ingrediente=-1; //Inicialmente mesa vacia
+   private Condition obtener_tabaco=makeCondition();
+   private Condition obtener_cerillas=makeCondition();
+   private Condition obtener_papel=makeCondition();
+   private Condition espera_estanquero= makeCondition();  
+
+   public void obtenerIngrediente(int Ingrediente){
+      enter();
+      if(this.ingrediente!=Ingrediente){
+        if(Ingrediente==0){
+            System.out.println("El fumador 1 espera tabaco");
+            obtener_tabaco.await();
+         }
+         else if(Ingrediente==1){
+            System.out.println("El fumador 2 espera cerillas");
+            obtener_cerillas.await();
+         }
+         else{
+             System.out.println("El fumador 3 espera papel");
+             obtener_papel.await();
+         }
+      }    
+      if(this.ingrediente==Ingrediente){
+        if(Ingrediente==0){
+            System.out.println("El fumador 1 recoge tabaco");
+         }
+         else if(Ingrediente==1){
+            System.out.println("El fumador 2 recoge cerillas");
+         }
+         else{
+             System.out.println("El fumador 3 recoge papel");
+         }
+      }    
+
+      ingrediente=-1;
+      espera_estanquero.signal();
+      leave();  
+   }
+
+   public void ponerIngrediente(int ingrediente){ 
+       enter();
+       this.ingrediente=ingrediente;
+       if(this.ingrediente==0) obtener_tabaco.signal();
+       if(this.ingrediente==1) obtener_cerillas.signal();
+       if(this.ingrediente==2) obtener_papel.signal();
+       leave();
+   }
+   /*
+   private Condition obtener_tabaco=makeCondition();
+   private Condition obtener_cerillas=makeCondition();
+   private Condition obtener_papel=makeCondition();
+   */
+   public void esperarRecogidaIngrediente(){
+       enter();
+
+       if (ingrediente!=-1) espera_estanquero.await();
+       System.out.println("El estanquero encuentra mesa vacia ....");
+       leave();
+   }
+
+}
+
+class Fumadores implements Runnable {
+   int mi_Ingrediente;
+   public Thread thr;
+   Estanco estanco;
+
+   public Fumadores( int p_miIngrediente, String nombre, Estanco estanco){
+      this.mi_Ingrediente=p_miIngrediente;
+      thr = new Thread(this,nombre);
+      this.estanco=estanco;
+   }
+
+   public void run(){
+      while(true){
+         estanco.obtenerIngrediente( mi_Ingrediente );
+      }
+   }
+}
+
+class Estanquero implements Runnable {
+   public Thread thr;
+   aux aux;
+   Estanco estanco;
+
+   public Estanquero(Estanco estanco){
+      thr = new Thread(this,"Estanco pepito");
+      this.estanco=estanco;
+   }
+   public void run() {
+      int ingrediente;
+      while(true){
+         ingrediente = (int) (Math.random () * 3.0);
+         System.out.println("Numero generado --> " + ingrediente);
+         estanco.ponerIngrediente(ingrediente);
+         aux.dormir_max(9999);
+         estanco.esperarRecogidaIngrediente();
+      }
+   }
+}
+
+class aux{
+  static Random genAlea = new Random() ;
+  static void dormir_max( int milisecsMax )
+  { try
+    { Thread.sleep( genAlea.nextInt( milisecsMax ) ) ;
+    } 
+    catch( InterruptedException e )
+    { System.err.println("sleep interumpido en 'aux.dormir_max()'");
+    }
+  }
+}
+
+class EjemploFumadores { 
+   public static void main( String[] args ) throws InterruptedException { 
+      Fumadores[] fumadores=new Fumadores[3];
+      Estanco estanco = new Estanco();
+      Estanquero estanquero= new Estanquero(estanco);
+      
+
+      estanquero.thr.start();
+      for(int i=0; i<3; i++){
+         fumadores[i]=new Fumadores(i,"Fumador"+1,estanco);
+         fumadores[i].thr.start();
+      }
+
+      estanquero.thr.join();
+
+      for(int i=0; i<3; i++){
+         fumadores[i].thr.join();
+      }
+   }
+}
+

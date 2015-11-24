@@ -1,0 +1,63 @@
+#include <iostream>
+#include <pthread.h>
+#include "fun_tiempo.h"
+
+using namespace std;
+
+const double pi = 3.141592653589793238462643;
+const unsigned long muestras = 100;
+const unsigned long nhebras =10;
+double resultado_parcial[nhebras];
+
+double f( double x ){ // implementa funcion f :
+	return 4.0/(1+x*x);
+}
+
+void * funcion_hebra( void * ih_void) // funcion que ejecuta cada hebra
+{
+	unsigned long ih = (unsigned long) ih_void ; // numero o ındice de esta hebra
+	double sumap = 0.0 ; 
+	// calcular suma parcial en ”sumap”
+	for( unsigned long i=0; i < (muestras/nhebras); i++){
+		sumap += f(((double)i+0.5)/((double)muestras/nhebras));
+	}
+	resultado_parcial[ih] = sumap/muestras ; // guardar suma parcial en vector.
+	
+}
+double calcular_integral_concurrente()
+{
+// crear y lanzar n hebras, cada una ejecuta ”funcion concurrente”
+	pthread_t hebra[nhebras] ;
+	for(unsigned long i = 0 ; i < nhebras ; i++ )
+		pthread_create( &(hebra[i]), NULL, funcion_hebra , (void *)i );
+
+// esperar (join) a que termine cada hebra, sumar su resultado
+	
+	for(unsigned long i = 0 ; i < nhebras ; i++)
+		pthread_join( hebra[i], NULL);
+
+// devolver resultado completo
+
+	double resultadofinal=0.0;
+	for (unsigned long i=0; i<nhebras; i++)
+		resultadofinal += resultado_parcial[i];
+	cout << "El resultado final de las sumas parciales es igual a: " << resultadofinal << endl;
+	return resultadofinal;
+}
+
+int main(){
+	struct timespec inicio = ahora();
+
+	double res=0.0;
+	res += calcular_integral_concurrente();
+	double error=0.0;
+	error =pi-res;
+	if(error <0)
+		error = error *(-1);
+	cout << "El resultado aproximado de pi es: " << res << "con un error del: " << 100*error << "%" << endl;
+
+	struct timespec fin = ahora() ;
+	cout << "tiempo transcurrido == "<< duracion( &inicio, &fin ) << " seg." << endl ;
+
+	}
+

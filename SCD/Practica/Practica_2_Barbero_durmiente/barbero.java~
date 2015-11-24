@@ -1,0 +1,28 @@
+import monitor.* ;
+import java.util.Random
+
+class Barbero extends AbstractMonitor {
+	Condition espera_silla=makeCondition();
+	Condition espera_cliente=makeCondition();
+	Condition espera_barbero=makeCondition();
+
+   public void siguiente_cliente(){
+	enter()
+	if(espera_cliente.isEmpty() && espera_silla.isEmpty())
+		espera_cliente.signal();
+    else if (
+
+
+	}
+
+	
+	public void cortar_pelo(){
+	enter()
+	if(espera_silla.isEmpty() && espera_cliente.isEmpty())
+		espera_barbero.await();
+	else if (!espera_silla.isEmpty())
+		espera_barbero.signal();
+	else if (!espera_cliente.isEmpty())
+		espera_silla.signal();
+	leave();
+	}

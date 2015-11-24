@@ -1,0 +1,3 @@
+codigo pasado por el profesor al que habia que arreglarle un fallo.
+el fallo estaba en el if de esperarRecogidaIngredientes porque hacia >= -1, siendo incorrecto ya que cuando el valor es -1 indica que el mostrador esta libre y el barbero no deberia esperar. Por tanto, se soluciona poniendo en el if ( Fumador > -1).
+
